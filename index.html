@@ -1509,9 +1509,6 @@ function earsSVG(sp,c,Hy,droop,fy){
     var r=sp==="mouse"?18:sp==="hamster"?11:sp==="panda"?15:14, dx=sp==="mouse"?38:34;
     [[-1],[1]].forEach(function(e){var s=e[0],x=100+s*dx,y=Hy+(sp==="mouse"?6:8);
       o+=L(x,y+r,s*droop*.6,sketchLine("M"+(x-r)+" "+(y+4)+" A"+r+" "+r+" 0 1 1 "+(x+r)+" "+(y+4),2.2,sp==="panda"?"#5d5568":c.f)+(sp==="panda"?"":pen("M"+(x-r*.5)+" "+(y+4)+" A"+(r*.5)+" "+(r*.5)+" 0 1 1 "+(x+r*.5)+" "+(y+4),1.4,"#ffd3df")))});
-  }else if(sp==="dog"){
-    [[-1],[1]].forEach(function(e){var s=e[0],x=100+s*52,y=Hy+14;
-      o+=L(x,y,s*(18+droop*.4),sketchLine("M"+(x-9)+" "+y+" C"+(x-14)+" "+(y+34)+" "+(x+14)+" "+(y+34)+" "+(x+9)+" "+y+" Z",2.2,"#d9b48f"))});
   }else if(sp==="sheep"){
     [[-1],[1]].forEach(function(e){var s=e[0],x=100+s*70,y=Hy+30;o+=L(x,y,s*(10+droop*.4),sketchLine("M"+x+" "+(y-6)+" q"+(s*16)+" 2 "+(s*18)+" 10 q"+(-s*10)+" 4 "+(-s*18)+" -2z",2,"#f6e4d6"))});
   }else if(sp==="unicorn"){
@@ -1625,6 +1622,9 @@ function charaSVG(o){
   // ひげ・つの・羊毛はクリップの外に出す
   if(sp==="cat"){[-6,0,6].forEach(function(dy){g+=pen("M"+(L+22)+" "+(fy-4+dy)+" L"+(L-14)+" "+(fy-8+dy*1.6),1.6)+pen("M"+(R-22)+" "+(fy-4+dy)+" L"+(R+14)+" "+(fy-8+dy*1.6),1.6)})}
   if(sp==="sheep"||sp==="unicorn")g+=marksSVG(sp,c,Hy,fy,L,R);
+  if(sp==="dog"){[-1,1].forEach(function(s){var x=100+s*46,y=Hy+3;
+    g+='<g transform="rotate('+(s*(28+ms.droop*.35))+' '+x+' '+y+')">'+sketchLine("M"+(x-11)+" "+y+" C"+(x-17)+" "+(y+40)+" "+(x+17)+" "+(y+40)+" "+(x+11)+" "+y+" Q"+x+" "+(y-6)+" "+(x-11)+" "+y+" Z",2.2,"#d9b48f")+
+      pen("M"+(x-4)+" "+(y+8)+" q4 18 0 22",1.2,null,' opacity=".35"')+'</g>'})}
   g+=faceMochi(mood,fy,sp==="panda"?"#ffffff":PEN,sp);
   if(sp==="panda")g+='<circle cx="80" cy="'+fy+'" r="3.3" fill="#fff"/><circle cx="120" cy="'+fy+'" r="3.3" fill="#fff"/>';
   if(eq.face&&FACESM[eq.face])g+=FACESM[eq.face](fy);
