@@ -182,6 +182,7 @@ textarea.search{min-height:90px;resize:vertical;font-size:13.5px}
 .found span{font-size:11.5px;background:#fff;border:1.5px solid #d6e5fa;border-radius:99px;padding:3px 8px;font-weight:700}
 .sum{display:flex;align-items:baseline;gap:6px;margin:8px 0;font-weight:800}
 .sum b{font-size:24px}
+.ocrbox{margin-top:10px;font-size:12.5px;color:var(--sub)}.ocrbox summary{cursor:pointer;font-weight:700}
 .chk{display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:700;color:var(--sub);margin:6px 0 10px}
 
 /* wardrobe */
@@ -392,21 +393,21 @@ var ADD = {
 };
 // 食品表示の文字から添加物の種類を拾うキーワード
 var KW = {
-  nitrite:/発色剤|亜硝酸/g,
-  pres:/保存料|ソルビン酸|安息香酸|プロピオン酸|しらこ|ポリリジン|デヒドロ酢酸/g,
-  sweet:/甘味料|アスパルテーム|スクラロース|アセスルファム|サッカリン|ネオテーム|ステビア|甘草/g,
-  color:/着色料|色素|赤色?\d+号?|黄色?\d+号?|青色?\d+号?|コチニール|アナトー|クチナシ|紅麹|カロチン|カロテン/g,
-  bleach:/漂白剤|次?亜硫酸/g,
-  phos:/リン酸塩|リン酸Na|リン酸K|ポリリン酸|ピロリン酸|メタリン酸/g,
-  thick:/増粘|安定剤|ゲル化剤|キサンタン|ペクチン|カラギ[ーナ]+ン?|グァー|グアー|加工デンプン|加工でん粉|アルギン酸/g,
-  ph:/pH調整剤|酸味料|クエン酸|乳酸(?!菌)|リンゴ酸|フマル酸/gi,
-  amino:/調味料\([^)]*\)|アミノ酸|核酸|グルタミン酸|イノシン酸/g,
-  emul:/乳化剤|レシチン|脂肪酸エステル/g,
-  flavor:/香料/g,
-  antiox:/酸化防止剤|ビタミンC|ビタミンE|V\.?C|V\.?E|エリソルビン酸|トコフェロール/g,
-  leaven:/膨張剤|ベーキングパウダー|重曹|炭酸水素Na/g,
+  nitrite:/発色[剤済斉]|亜硝酸/g,
+  pres:/保存[料科]|ソルビン酸|安息香酸|プロピオン酸|しらこ|ポリリジン|デヒドロ酢酸/g,
+  sweet:/甘味[料科]|アスパルテーム|スクラロース|アセスルファム|サッカリン|ネオテーム|ステビア|甘草/g,
+  color:/着色[料科]|色素|赤色?\d+号?|黄色?\d+号?|青色?\d+号?|コチニ[ーｰ-]?ル?|アナトー|クチナシ|紅麹|カロチン|カロテン/g,
+  bleach:/漂白[剤済]|次?亜硫酸/g,
+  phos:/リン酸[塩場鹽Na(K]|ポリリン酸|ピロリン酸|メタリン酸/g,
+  thick:/増粘|安定[剤済]|ゲル化[剤済]|キサンタン|ペクチン|カラギ[ーナ]+ン?|グァー|グアー|加工デンプン|加工でん粉|アルギン酸|カゼインNa/g,
+  ph:/pH調整|PH調整|酸味[料科]|クエン酸|乳酸(?!菌)|リンゴ酸|フマル酸/gi,
+  amino:/調味[料科]\([^)]*\)|アミノ酸|核酸|グルタミン酸|イノシン酸/g,
+  emul:/乳化[剤済斉]|レシチン|脂肪酸エステル/g,
+  flavor:/香[料科]/g,
+  antiox:/[酸融]化防止|ビタミンC|ビタミンE|V\.?C|V\.?E|エリソルビン酸|トコフェロール/g,
+  leaven:/膨[張脹][剤済]|ベーキングパウダー|重曹|炭酸水素Na/g,
   kansui:/かんすい/g,
-  other:/光沢剤|凝固剤|酵素|強化剤|ソルビトール|トレハロース|グリシン|酢酸Na|苦味料|ガムベース|塩化Mg|塩化Ca/g
+  other:/光沢[剤済]|凝固[剤済]|酵素|強化[剤済]|ソルビトール|トレハロース|グリシン|酢酸Na|苦味[料科]|ガムベース|塩化Mg|塩化Ca|くん液|燻液/g
 };
 var FOODS = [
   {e:"🍜",n:"カップ麺",g:"meal",a:["amino","kansui","thick","color","antiox","ph","flavor","phos"]},
@@ -1232,60 +1233,116 @@ $("cAdd").onclick=function(){
 /* ================= label scan ================= */
 var scan=null;
 function resetScan(){if(scan&&scan.url)URL.revokeObjectURL(scan.url);scan=null;$("scanPanel").hidden=true;$("pickArea").hidden=false;$("pickHead").hidden=false;$("scanBox").hidden=false}
+function cleanText(text){
+  return String(text||"").normalize("NFKC")
+    .replace(/[【\[｛{〔]/g,"(").replace(/[】\]｝}〕]/g,")").replace(/[（]/g,"(").replace(/[）]/g,")")
+    .replace(/[／]/g,"/").replace(/[ \t　]+/g,"");
+}
 function parseText(text){
-  var t=String(text||"").normalize("NFKC").replace(/[（]/g,"(").replace(/[）]/g,")");
-  var slash=t.search(/[\/]/); var part=slash>=0?t.slice(slash+1):t;
+  var t=cleanText(text);
+  var cut=t.search(/内容量|賞味期限|消費期限|保存方法|製造者|販売者|製造所|加工者|栄養成分/); if(cut>20)t=t.slice(0,cut);
+  var slash=t.search(/\//); var part=slash>=0?t.slice(slash+1):t;
   var mi=part.search(/添加物/); if(slash<0&&mi>=0)part=part.slice(mi);
+  part=part.replace(/\n/g,"");
   var cats=[],words=[];
   Object.keys(KW).forEach(function(k){
     var re=new RegExp(KW[k].source,KW[k].flags);var m=part.match(re);
     if(m){cats.push(k);m.forEach(function(w){if(words.indexOf(w)<0&&words.length<24)words.push(w)})}
   });
+  words=words.map(function(w){return w.replace(/科$/,"料").replace(/^(発色|乳化|漂白|安定|ゲル化|膨張|膨脹|光沢|凝固|強化)[済斉]$/,"$1剤").replace(/^リン酸[場鹽]$/,"リン酸塩").replace(/^融化防止$/,"酸化防止剤").replace(/^酸化防止$/,"酸化防止剤").replace(/^コチニ[ーｰ-]?ル?$/,"コチニール").replace(/^調味科/,"調味料")})
+    .filter(function(w,i,arr){return arr.indexOf(w)===i});
   words=words.filter(function(w){return !words.some(function(o){return o!==w&&o.indexOf(w)>=0})});
   return {cats:cats,words:words};
 }
+function guessName(text){
+  var lines=String(text||"").normalize("NFKC").split(/\n/);
+  for(var i=0;i<lines.length;i++){var l=lines[i].replace(/[ \t　]+/g,"");var m=l.match(/^(名称|品名|商品名)[:：]?(.+)$/);if(m&&m[2].length>1)return m[2].slice(0,30)}
+  return "";
+}
+window.__parseLabel=parseText;
+function loadImg(file){return new Promise(function(res,rej){var img=new Image(),url=URL.createObjectURL(file);img.onload=function(){res({img:img,url:url})};img.onerror=function(){URL.revokeObjectURL(url);rej(new Error("img"))};img.src=url})}
 function shrink(file){
-  return new Promise(function(res,rej){
-    var img=new Image(),url=URL.createObjectURL(file);
-    img.onload=function(){
-      var m=1600,w=img.naturalWidth,h=img.naturalHeight,s=Math.min(1,m/Math.max(w,h));
-      var cv=document.createElement("canvas");cv.width=Math.round(w*s);cv.height=Math.round(h*s);
-      cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);URL.revokeObjectURL(url);
-      cv.toBlob(function(b){b?res(b):rej(new Error("blob"))},"image/jpeg",0.85);
-    };
-    img.onerror=function(){URL.revokeObjectURL(url);rej(new Error("img"))};
-    img.src=url;
+  return loadImg(file).then(function(o){
+    var img=o.img,m=1600,w=img.naturalWidth,h=img.naturalHeight,s=Math.min(1,m/Math.max(w,h));
+    var cv=document.createElement("canvas");cv.width=Math.round(w*s);cv.height=Math.round(h*s);
+    cv.getContext("2d").drawImage(img,0,0,cv.width,cv.height);URL.revokeObjectURL(o.url);
+    return new Promise(function(res,rej){cv.toBlob(function(b){b?res(b):rej(new Error("blob"))},"image/jpeg",0.85)});
   });
 }
+/* 文字読み取り用の前処理：大きさをそろえて、白黒にして、コントラストを上げる */
+function prepForOCR(file){
+  return loadImg(file).then(function(o){
+    var img=o.img,w=img.naturalWidth,h=img.naturalHeight,s=Math.min(2.2,Math.max(1,1800/Math.max(w,h)));
+    if(Math.max(w,h)*s>2600)s=2600/Math.max(w,h);
+    var cv=document.createElement("canvas");cv.width=Math.round(w*s);cv.height=Math.round(h*s);
+    var ctx=cv.getContext("2d");ctx.drawImage(img,0,0,cv.width,cv.height);URL.revokeObjectURL(o.url);
+    var d=ctx.getImageData(0,0,cv.width,cv.height),px=d.data,hist=new Array(256).fill(0),n=px.length/4;
+    for(var i=0;i<px.length;i+=4){var g=(px[i]*.299+px[i+1]*.587+px[i+2]*.114)|0;px[i]=g;hist[g]++}
+    var lo=0,hi=255,acc=0;for(lo=0;lo<255;lo++){acc+=hist[lo];if(acc>n*.02)break}
+    acc=0;for(hi=255;hi>0;hi--){acc+=hist[hi];if(acc>n*.02)break}
+    var span=Math.max(1,hi-lo);
+    for(i=0;i<px.length;i+=4){var v=Math.max(0,Math.min(255,(px[i]-lo)*255/span));px[i]=px[i+1]=px[i+2]=v}
+    ctx.putImageData(d,0,0);return cv;
+  });
+}
+var OCR_SRC="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js";
+function loadOCR(){
+  if(window.Tesseract)return Promise.resolve(window.Tesseract);
+  return new Promise(function(res,rej){var sc=document.createElement("script");sc.src=OCR_SRC;sc.async=true;
+    sc.onload=function(){window.Tesseract?res(window.Tesseract):rej({code:"ocr_load"})};sc.onerror=function(){rej({code:"ocr_load"})};document.head.appendChild(sc)});
+}
+function ocrRead(file,onProg){
+  var worker=null;
+  return Promise.all([loadOCR(),prepForOCR(file)]).then(function(r){
+    var T=r[0],cv=r[1];
+    return Promise.resolve(T.createWorker("jpn",1,{logger:function(m){
+      if(m.status==="recognizing text")onProg("文字を読み取っています… "+Math.round((m.progress||0)*100)+"%");
+      else if(/load|initializ/.test(m.status||""))onProg("読み取りの準備中…（はじめての時だけ少し時間がかかります）");
+    }})).then(function(w){worker=w;return w.recognize(cv)}).then(function(res){
+      var text=res&&res.data&&res.data.text||"";if(worker)worker.terminate();return text;
+    });
+  }).catch(function(e){if(worker)try{worker.terminate()}catch(_){}throw (e&&e.code)?e:{code:"ocr_fail",detail:String(e&&e.message||e)}});
+}
 function showScan(){
-  $("scanPanel").hidden=false;$("pickArea").hidden=true;$("pickHead").hidden=true;$("scanBox").hidden=true;$("sheetBody").scrollTop=0;
+  $("scanPanel").hidden=false;$("pickArea").hidden=true;$("pickHead").hidden=true;$("scanBox").hidden=true;
   var h='<div class="hd">📷 食品表示の読みこみ<button class="x" id="scanX">✕</button></div>';
   if(scan.url)h+='<img class="scanimg" src="'+scan.url+'" alt="">';
-  if(scan.status==="busy")h+='<div class="status"><span class="spin"></span>原材料名から添加物をさがしています…</div>';
+  if(scan.status==="busy")h+='<div class="status"><span class="spin"></span><span id="scanProg">'+esc(scan.prog||"原材料名から添加物をさがしています…")+'</span></div>';
   if(scan.msg)h+='<div class="warn">'+esc(scan.msg)+'</div>';
   if(scan.mode==="paste"){
-    h+='<div style="font-size:12.5px;color:var(--sub);margin:4px 0">スマホの「テキスト認識」などで原材料名をコピーして貼り付けてね</div>'+
+    h+='<div style="font-size:12.5px;color:var(--sub);margin:4px 0">原材料名の文字を入力するか、スマホの「テキスト認識」でコピーして貼り付けてね</div>'+
       '<textarea class="search" id="pasteTx" placeholder="例：小麦粉、砂糖、植物油脂／乳化剤、香料、着色料(カロテン)…">'+esc(scan.text||"")+'</textarea>'+
       '<button class="btn2" id="pasteGo" style="margin-top:8px">読みこむ</button>';
   }
   if(scan.mode==="result"){
     var p=pts(scan.cats);
-    h+='<input class="search" id="scanName" placeholder="商品名" value="'+esc(scan.name||"")+'" style="margin-top:4px">'+
-      (scan.words.length?'<div style="font-size:12px;color:var(--sub);margin-top:8px">見つかった添加物</div><div class="found">'+scan.words.map(function(w){return '<span>'+esc(w)+'</span>'}).join("")+'</div>':'<div class="warn">添加物が見つからなかったよ。無添加でなければ下でえらんでね</div>')+
+    h+='<input class="search" id="scanName" placeholder="商品名（わかれば）" value="'+esc(scan.name||"")+'" style="margin-top:4px">'+
+      (scan.words.length?'<div style="font-size:12px;color:var(--sub);margin-top:8px">見つかった添加物</div><div class="found">'+scan.words.map(function(w){return '<span>'+esc(w)+'</span>'}).join("")+'</div>':'<div class="warn">添加物が見つからなかったよ。原材料名の部分を明るく大きく撮りなおすか、下で種類をえらんでね</div>')+
       '<div style="font-size:12px;color:var(--sub);margin-top:6px">種類（タップで直せます）</div><div class="cats" id="scanCats">'+catButtons(scan.cats)+'</div>'+
       '<div class="sum"><b id="scanPts">'+p+'</b>pt <span style="font-size:12px;color:var(--sub);font-weight:700" id="scanKinds">'+(scan.cats.length?scan.cats.length+"種類":"🌿 無添加")+'</span></div>'+
       '<label class="chk"><input type="checkbox" id="scanKeep" checked> マイ食品に保存して次から1タップで記録</label>'+
-      '<button class="btn2" id="scanLog">これで記録する（+15 EXP ボーナス）</button>';
+      '<button class="btn2" id="scanLog">これで記録する（+15 EXP ボーナス）</button>'+
+      (scan.text?'<details class="ocrbox"><summary>読み取った文字を見る・直す</summary><textarea class="search" id="ocrTx">'+esc(scan.text)+'</textarea><button class="btn3" id="reparse" style="margin-top:6px">この文字で読みなおす</button></details>':'')+
+      '<label class="btn3" style="margin-top:8px">📷 撮りなおす<input type="file" accept="image/*" capture="environment" id="fileRetake" hidden></label>';
   }
   $("scanPanel").innerHTML=h;
+  var rt=$("fileRetake");if(rt)rt.addEventListener("change",onFile);
+  $("sheetBody").scrollTop=0;
+}
+function setResult(text,name,extraWords,extraCats){
+  var r=parseText(text);
+  var cats=r.cats.slice();(extraCats||[]).forEach(function(c){if(ADD[c]&&cats.indexOf(c)<0)cats.push(c)});
+  var words=(extraWords&&extraWords.length?extraWords:r.words).slice(0,24);
+  scan.status="";scan.mode="result";scan.cats=cats;scan.words=words;scan.name=(name||scan.name||guessName(text)||"").slice(0,30);
 }
 $("scanPanel").addEventListener("click",function(e){
   var t=e.target;
   if(t.closest("#scanX")){resetScan();return}
   if(t.closest("#pasteGo")){
-    var tx=$("pasteTx").value;if(!tx.trim()){toast("文字を貼り付けてね");return}
-    var r=parseText(tx);scan.text=tx;scan.mode="result";scan.cats=r.cats;scan.words=r.words;scan.msg="";scan.status="";scan.name=scan.name||"";showScan();return;
+    var tx=$("pasteTx").value;if(!tx.trim()){toast("文字を入力してね");return}
+    scan.text=tx;scan.msg="";setResult(tx);showScan();return;
   }
+  if(t.closest("#reparse")){var tx2=$("ocrTx").value;scan.text=tx2;scan.name="";setResult(tx2);scan.msg="文字を直して読みなおしたよ。";showScan();return}
   var cb=t.closest(".cat");
   if(cb&&scan){var c=cb.dataset.c,i=scan.cats.indexOf(c);if(i>=0)scan.cats.splice(i,1);else scan.cats.push(c);cb.classList.toggle("on",i<0);
     $("scanPts").textContent=pts(scan.cats);$("scanKinds").textContent=scan.cats.length?scan.cats.length+"種類":"🌿 無添加";return}
@@ -1307,10 +1364,9 @@ function onFile(e){
 $("fileCam").addEventListener("change",onFile);
 $("fileLib").addEventListener("change",onFile);
 
-function readLabel(file){
-  scan={mode:"",status:"busy",cats:[],words:[],url:URL.createObjectURL(file)};showScan();
-  var mine=scan;
-  shrink(file).then(function(blob){
+/* 読み取りの順番：① Claude（Claude上で開いたとき） → ② 端末内の文字読み取り（どこでも） → ③ 手入力 */
+function claudeRead(file){
+  return shrink(file).then(function(blob){
     return useCap("sample").then(function(sample){
       if(!sample)throw {code:"no_sample"};
       return Promise.resolve(sample.limits?sample.limits():{images:true}).catch(function(){return {images:false}}).then(function(lim){
@@ -1320,30 +1376,47 @@ function readLabel(file){
           "3. それぞれを次のカテゴリキーに分類し、重複なしで categories に入れる：\n"+
           Object.keys(ADD).map(function(k){return k+"="+ADD[k].n}).join(", ")+"\n"+
           "（例：調味料(アミノ酸等)→amino、酸味料→ph、カラメル色素→color、ビタミンC(酸化防止剤)→antiox、加工デンプン→thick、酵素・光沢剤など分類できないもの→other）\n"+
+          "4. 原材料名欄の文字をそのまま raw に入れる。\n"+
           "食品表示が写っていない・読めない場合は found を false に。推測で添加物を足さないこと。\n"+
-          "次のJSONだけを返す：{\"found\":true,\"name\":\"商品名\",\"additives\":[\"乳化剤\",\"香料\"],\"categories\":[\"emul\",\"flavor\"]}";
+          "次のJSONだけを返す：{\"found\":true,\"name\":\"商品名\",\"raw\":\"原材料名欄の文字\",\"additives\":[\"乳化剤\",\"香料\"],\"categories\":[\"emul\",\"flavor\"]}";
         return sample.json(prompt,{images:[blob],modelTier:"default"});
       });
     });
   }).then(function(r){
-    if(scan!==mine)return;
     if(typeof r==="string"){try{r=JSON.parse(r)}catch(e){r=null}}
-    if(!r||r.found===false){scan.status="";scan.mode="paste";scan.msg="食品表示がうまく読めなかったよ。原材料名がはっきり写るように撮り直すか、文字を貼り付けてね。";showScan();return}
-    var adds=Array.isArray(r.additives)?r.additives.map(String):[];
-    var cats=(Array.isArray(r.categories)?r.categories:[]).filter(function(c){return ADD[c]});
-    var pr=parseText("/"+adds.join("、"));
-    pr.cats.forEach(function(c){if(cats.indexOf(c)<0)cats.push(c)});
-    scan.status="";scan.mode="result";scan.name=String(r.name||"").slice(0,30);scan.cats=cats;scan.words=adds.slice(0,24);
-    scan.msg="読みとり結果はまちがうこともあるよ。パッケージと見くらべてね。";
-    showScan();
-  }).catch(function(err){
+    if(!r||r.found===false)throw {code:"claude_unreadable"};
+    return r;
+  });
+}
+function readLabel(file){
+  scan={mode:"",status:"busy",cats:[],words:[],url:URL.createObjectURL(file),prog:"食品表示を読み取っています…"};showScan();
+  var mine=scan;
+  function prog(t){if(scan!==mine)return;scan.prog=t;var el=$("scanProg");if(el)el.textContent=t}
+  function viaOCR(why){
+    prog("文字を読み取っています…");
+    return ocrRead(file,prog).then(function(text){
+      if(scan!==mine)return;
+      scan.text=text;setResult(text);
+      scan.msg=(text.replace(/\s/g,"").length<15)?"文字があまり読み取れなかったよ。原材料名の部分を明るく、まっすぐ、大きく撮ってね。":"読み取り結果はまちがうこともあるよ。パッケージと見くらべて、ちがっていたら種類をタップして直してね。";
+      showScan();
+    });
+  }
+  var useClaude=!!(window.claude&&typeof window.claude.use==="function");
+  (useClaude?claudeRead(file).then(function(r){
+      if(scan!==mine)return;
+      var adds=Array.isArray(r.additives)?r.additives.map(String):[];
+      var cats=(Array.isArray(r.categories)?r.categories:[]);
+      scan.text=String(r.raw||"");
+      setResult("/"+adds.join("、")+"\n"+scan.text,String(r.name||""),adds,cats);
+      scan.msg="読み取り結果はまちがうこともあるよ。パッケージと見くらべてね。";showScan();
+    }).catch(function(err){if(scan!==mine)return;return viaOCR(err)})
+    : viaOCR()
+  ).catch(function(err){
     if(scan!==mine)return;
     var code=err&&err.code;
     scan.status="";scan.mode="paste";
-    scan.msg=code==="no_sample"||code==="no_images"||code==="not_granted"
-      ? "このページでは画像の自動読みとりが使えないみたい。原材料名の文字を貼り付けると読みこめるよ。"
-      : code==="rate_limited" ? "読みとりが混みあっているよ。少し待ってからもう一度撮るか、文字を貼り付けてね。"
-      : "読みとりに失敗しちゃった。もう一度撮るか、文字を貼り付けてね。";
+    scan.msg=code==="ocr_load"?"文字の読み取り機能を読みこめなかったよ（通信状況を確認してね）。原材料名の文字を入力しても記録できるよ。"
+      :"読み取りに失敗しちゃった。もう一度撮るか、原材料名の文字を入力してね。";
     showScan();
   });
 }
