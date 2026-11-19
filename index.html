@@ -577,7 +577,7 @@ function migrate(){
   if(!CHARAS.some(function(c){return c.id===S.chara.sp}))S.chara.sp="rabbit";
   if((S.v||0)<4&&!("top" in eq)){eq.top="tshirt";eq.bottom="pants";eq.shoes="sneaker";eq.acc=ACCS[eq.body]?eq.body:"bowtie";delete eq.body}
   if(OLDMAP[eq.head])eq.head=OLDMAP[eq.head];
-  ["color","head","face","body","hold"].forEach(function(k){if(eq[k]===undefined)eq[k]=null});
+  ["color","cloth","head","face","body","hold"].forEach(function(k){if(eq[k]===undefined)eq[k]=null});
   if(!eq.bg||!BGS[eq.bg])eq.bg="meadow";
   if(S.v===3||S.v===undefined||S.v<4){
     if(OLDMAP[S.chara.sp]||!CHARAS.some(function(c){return c.id===S.chara.sp}))S.chara.sp="rabbit";
@@ -1112,9 +1112,11 @@ function confetti(){
 function gainExp(n){
   var before=levelInfo(S.exp).lv;S.exp+=n;var after=levelInfo(S.exp).lv;
   if(after>before){
-    var msg=nickOf(S.chara.sp)+"が少し大きくなったよ！";
-    if([3,6,10,15].indexOf(after)>=0)msg="「"+stageName(after)+"」に成長した！";
-    showPop("🆙","レベル "+after+" になった！",msg);
+    var g0=growth(before).st,g1=growth(after).st,nm=nickOf(S.chara.sp);
+    if(g1>g0){
+      if(g1===4)showPop("🎀","「"+GROW_NAMES[g1].replace(/^\S+\s/,"")+"」に成長した！",nm+"の背がのびて、手が生えたよ。服が着られるようになったよ！",["服をえらぶ",function(){openWard("cloth")}]);
+      else showPop("🆙","レベル "+after+"！「"+GROW_NAMES[g1].replace(/^\S+\s/,"")+"」に成長した！",g1===3?nm+"に足が生えたよ！":nm+"がひとまわり大きくなったよ！");
+    }else showPop("🆙","レベル "+after+" になった！",nm+"が少し大きくなったよ！"+(after<CLOTH_LV?"（Lv."+CLOTH_LV+"で服が着られるよ）":""));
   }
 }
 function checkUnlocks(silent){
@@ -1424,6 +1426,7 @@ function readLabel(file){
 /* ================= wardrobe ================= */
 var wTab="chara";
 function equip(it){
+  if(it.s==="cloth"&&!growth(levelInfo(S.exp).lv).cloth){toast("👕 Lv."+CLOTH_LV+"（おおもち）まで育つと服が着られるよ");return}
   if(it.s==="chara"){var oldSign=SIGN[S.chara.sp];S.chara.sp=it.id;if(!S.chara.eq.hold||S.chara.eq.hold===oldSign)S.chara.eq.hold=SIGN[it.id]||null}
   else if(it.s==="bg")S.chara.eq.bg=it.id;
   else S.chara.eq[it.s]=(S.chara.eq[it.s]===it.id?null:it.id);
@@ -1443,7 +1446,8 @@ function renderWard(){
   $("nick").value=(S.chara.nick&&S.chara.nick[S.chara.sp])||"";$("nick").placeholder=CHARAS.filter(function(c){return c.id===S.chara.sp})[0].n+"（なまえを変える）";
   var stt=stats();
   var list=ALLITEMS.filter(function(it){return it.s===wTab});
-  $("wGrid").innerHTML=list.map(function(it){
+  var clothLock=wTab==="cloth"&&!growth(levelInfo(S.exp).lv).cloth;
+  $("wGrid").innerHTML=(clothLock?'<div class="warn" style="grid-column:1/-1">👕 Lv.'+CLOTH_LV+'で「おおもち」に育つと、手が生えて服が着られるようになるよ（いま Lv.'+levelInfo(S.exp).lv+'）</div>':'')+list.map(function(it){
     var un=isUnlocked(it),on=it.s==="chara"?S.chara.sp===it.id:S.chara.eq[it.s]===it.id,isNew=it.req&&un&&S.seen.indexOf(it.id)<0;
     var icon=it.s==="chara"?charaSVG({sp:it.id,mood:"good",load:0,lv:5,eq:{hold:SIGN[it.id]},mini:true}):'<span class="e">'+it.e+'</span>';
     var pr=it.req?Math.min(1,stt[it.req[0]]/it.req[1]):1;
@@ -1676,22 +1680,27 @@ function charaSVG(o){
   var baseHex=eq.color&&BODYCOL[eq.color]?BODYCOL[eq.color]:cdef.c;
   var t=Math.min(1,(o.load||0)/1.3)*.45, base=mixc(hex2rgb(baseHex),[200,192,214],t);
   var c={f:eq.color==="rainbow"?"url(#"+id+"rb)":rgb(base),l:rgb(mixc(base,[255,255,255],.6))};
-  var T=TOP0[sp]||88, h=ms.h, w=ms.w;
-  var Hy=150-(150-T)*h, L=28-72*w, R=172+72*w, fy=150-(150-128)*Math.max(h,.8), k=o.mini?1:(0.9+Math.min(o.lv||1,10)*0.01);
+  var gr=growth(o.lv), T=(TOP0[sp]||88)-(gr.tall?24:0), h=ms.h, w=ms.w;
+  var Hy=150-(150-T)*h, L=28-72*w, R=172+72*w, fy=gr.tall?Hy+(150-Hy)*0.4:150-(150-128)*Math.max(h,.8), k=o.mini?1:gr.sc;
+  var cloth=gr.cloth&&eq.cloth?CLOTH[eq.cloth]:null;
   var body="M"+(L+14)+" 150 Q"+L+" 150 "+L+" "+(150-14*h)+" C"+L+" "+Hy+" "+(L+34)+" "+Hy+" 100 "+Hy+" C"+(R-34)+" "+Hy+" "+R+" "+Hy+" "+R+" "+(150-14*h)+" Q"+R+" 150 "+(R-14)+" 150 Z";
   var g='<defs><clipPath id="'+id+'c"><path d="'+body+'"/></clipPath>'+
     '<linearGradient id="'+id+'rb" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#ffd6e6"/><stop offset=".25" stop-color="#fff1b8"/><stop offset=".5" stop-color="#d6f5e6"/><stop offset=".75" stop-color="#d6ecff"/><stop offset="1" stop-color="#e6dcff"/></linearGradient>'+
     '<filter id="'+id+'w" x="-10%" y="-10%" width="120%" height="120%"><feTurbulence type="fractalNoise" baseFrequency="0.03" numOctaves="2" seed="7"/><feDisplacementMap in="SourceGraphic" scale="2.4"/></filter>'+
     '<radialGradient id="'+id+'h"><stop offset="0" stop-color="#fff" stop-opacity=".8"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient></defs>';
   if(!o.mini&&mood!=="sick")g+='<ellipse cx="100" cy="110" rx="110" ry="90" fill="url(#'+id+'h)" opacity="'+(mood==="great"?.9:mood==="bad"?.25:.55)+'"/>';
-  g+='<ellipse cx="100" cy="153" rx="'+(78+60*w)+'" ry="6" fill="rgba(150,120,130,.18)"/>';
+  if(!o.mini&&gr.aura)g+='<g><animateTransform attributeName="transform" type="rotate" values="0 100 108;360 100 108" dur="24s" repeatCount="indefinite"/><ellipse cx="100" cy="108" rx="104" ry="74" fill="none" stroke="#ffd36b" stroke-width="3" stroke-dasharray="1 9" stroke-linecap="round" opacity=".8"/></g>';
+  g+='<ellipse cx="100" cy="'+(gr.feet?160:155)+'" rx="'+(78+60*w)+'" ry="6" fill="rgba(150,120,130,.18)"/>';
   g+='<g transform="translate(100 150) scale('+k+') translate(-100 -150)"><g class="body" filter="url(#'+id+'w)">';
   var bm=BODYM[eq.body];
   if(bm&&bm.back)g+=bm.back(fy,Hy,L,R);
   g+=earsSVG(sp,c,Hy,ms.droop,fy);
+  if(gr.feet)g+=sketchLine("M58 146 q16 -5 30 0 q3 14 -15 14 q-18 0 -15 -14z",2,c.f)+sketchLine("M112 146 q16 -5 30 0 q3 14 -15 14 q-18 0 -15 -14z",2,c.f);
   g+=sketchLine(body,2.4,c.f);
   g+='<path d="M'+(L+16)+' '+(Hy+18)+' q8 -12 22 -14" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" opacity=".8"/>';
-  g+='<g clip-path="url(#'+id+'c)">'+((sp==="sheep"||sp==="unicorn")?"":marksSVG(sp,c,Hy,fy,L,R))+(bm&&bm.front?bm.front(fy,Hy):"")+'</g>';
+  g+='<g clip-path="url(#'+id+'c)">'+((sp==="sheep"||sp==="unicorn")?"":marksSVG(sp,c,Hy,fy,L,R))+(cloth?cloth.d(fy+13,L,R):"")+(bm&&bm.front?bm.front(fy,Hy):"")+'</g>';
+  if(cloth)g+=pen(body,2.4);
+  if(gr.arms)g+=armsSVG(mood,fy,L,R,c,cloth,o.mini);
   // ひげ・つの・羊毛はクリップの外に出す
   if(sp==="cat"){[-6,0,6].forEach(function(dy){g+=pen("M"+(L+22)+" "+(fy-4+dy)+" L"+(L-14)+" "+(fy-8+dy*1.6),1.6)+pen("M"+(R-22)+" "+(fy-4+dy)+" L"+(R+14)+" "+(fy-8+dy*1.6),1.6)})}
   if(sp==="sheep"||sp==="unicorn")g+=marksSVG(sp,c,Hy,fy,L,R);
@@ -1717,6 +1726,58 @@ function charaSVG(o){
     if(mood==="sleep")g+='<circle cx="150" cy="'+(Hy-6)+'" r="3" fill="#fff" stroke="'+PEN+'" stroke-width="1"/><circle cx="160" cy="'+(Hy-18)+'" r="4.5" fill="#fff" stroke="'+PEN+'" stroke-width="1"/><ellipse cx="178" cy="'+(Hy-38)+'" rx="18" ry="14" fill="#fff" stroke="'+PEN+'" stroke-width="1.4"/><text x="168" y="'+(Hy-32)+'" font-size="15">🍙</text>';
   }
   return '<svg viewBox="-12 -40 224 200">'+g+'</svg>';
+}
+
+/* ===== 成長と服 ===== */
+var GROW_NAMES={1:"🍡 ちびもち",2:"🌱 こもち",3:"🍙 おもち",4:"🎀 おおもち",5:"✨ きらもち",6:"👑 でんせつもち"};
+var CLOTH_LV=8;
+function growth(lv){
+  lv=lv||1;var st=lv>=15?6:lv>=12?5:lv>=CLOTH_LV?4:lv>=5?3:lv>=3?2:1;
+  var sc=st===1?.56+.05*(lv-1):st===2?.68+.05*(lv-3):st===3?.8+.04*(lv-5):st===4?.98+.01*Math.min(lv-8,3):st===5?1.04:1.08;
+  return {st:st,sc:sc,feet:st>=3,arms:st>=4,tall:st>=4,cloth:st>=4,aura:st>=5};
+}
+function stageName(lv){return GROW_NAMES[growth(lv).st]}
+ITEMS=ITEMS.concat([
+  {id:"c_tshirt",s:"cloth",e:"👕",n:"Tシャツ",req:null},
+  {id:"c_border",s:"cloth",e:"🔵",n:"ボーダーシャツ",req:null},
+  {id:"c_frill",s:"cloth",e:"👗",n:"フリルワンピース",req:null},
+  {id:"c_hoodie",s:"cloth",e:"🧥",n:"パーカー",req:["days",4]},
+  {id:"c_overall",s:"cloth",e:"👖",n:"オーバーオール",req:["logs",20]},
+  {id:"c_knit",s:"cloth",e:"🧶",n:"ニットセーター",req:["days",8]},
+  {id:"c_sailor",s:"cloth",e:"⚓",n:"セーラー服",req:["missions",8]},
+  {id:"c_yukata",s:"cloth",e:"🎐",n:"ゆかた",req:["lv",9]},
+  {id:"c_straw",s:"cloth",e:"🍓",n:"いちごワンピース",req:["catch",2]},
+  {id:"c_magical",s:"cloth",e:"🪄",n:"まほうしょうじょ服",req:["quiz",2]},
+  {id:"c_hero",s:"cloth",e:"🦸",n:"ヒーロースーツ",req:["lv",11]},
+  {id:"c_tux",s:"cloth",e:"🤵",n:"タキシード",req:["lv",13]}
+]);
+ALLITEMS=CHARAS.concat(ITEMS);
+SLOTS=[["chara","キャラ"],["color","いろ"],["cloth","ふく"],["head","ぼうし"],["face","かお"],["body","こもの"],["hold","もちもの"],["bg","はいけい"]];
+function garmentBase(col,ny,L,R){return '<path d="M'+(L-30)+' '+ny+' Q100 '+(ny+9)+' '+(R+30)+' '+ny+' V170 H'+(L-30)+' Z" fill="'+col+'"/>'+pen("M"+(L-30)+" "+ny+" Q100 "+(ny+9)+" "+(R+30)+" "+ny,1.6)}
+function stripesY(y0,col,gap){var o="";for(var y=y0;y<160;y+=gap)o+='<rect x="-40" y="'+y+'" width="280" height="'+(gap/2)+'" fill="'+col+'"/>';return o}
+var CLOTH={
+  c_tshirt:{sl:"#a8dcff",d:function(ny,L,R){return garmentBase("#a8dcff",ny,L,R)+pen("M88 "+(ny+5)+" q12 8 24 0",1.4,null,' opacity=".5"')}},
+  c_border:{sl:"#ffffff",d:function(ny,L,R){return garmentBase("#ffffff",ny,L,R)+'<g clip-path="none">'+stripesY(ny+7,"#8fb5ee",9)+'</g>'+pen("M"+(L-30)+" "+ny+" Q100 "+(ny+9)+" "+(R+30)+" "+ny,1.6)}},
+  c_frill:{sl:"#ffc8e1",d:function(ny,L,R){var o=garmentBase("#ffc8e1",ny,L,R);for(var x=56;x<150;x+=17)o+='<circle cx="'+x+'" cy="'+(ny+24+((x/17|0)%2)*8)+'" r="2.6" fill="#fff"/>';return o+scallop(60,140,ny+3,4,"#fff","#e7c8d8")+bow(100,ny+12,8,"#c9b4ff","#a68ee6",true)}},
+  c_hoodie:{sl:"#ffb3a0",d:function(ny,L,R){return garmentBase("#ffb3a0",ny,L,R)+sketchLine("M78 "+(ny+22)+" h44 l6 18 h-56 z",1.4,"#f59a86")+pen("M93 "+(ny+3)+" v13 M107 "+(ny+3)+" v13",1.6,null,' stroke="#fff"')}},
+  c_overall:{sl:"#ffffff",d:function(ny,L,R){return garmentBase("#ffffff",ny,L,R)+'<rect x="-40" y="'+(ny+20)+'" width="280" height="60" fill="#8fb8e8"/>'+sketchLine("M80 "+(ny+6)+" h40 v16 h-40 z",1.4,"#8fb8e8")+pen("M80 "+(ny+6)+" L66 "+(ny-2)+" M120 "+(ny+6)+" L134 "+(ny-2),3,null,' stroke="#6f9ad6"')+'<circle cx="84" cy="'+(ny+10)+'" r="2.4" fill="#ffd36b"/><circle cx="116" cy="'+(ny+10)+'" r="2.4" fill="#ffd36b"/>'}},
+  c_knit:{sl:"#c9e8a8",d:function(ny,L,R){var o=garmentBase("#c9e8a8",ny,L,R);for(var y=ny+10;y<156;y+=9){var d="M-30 "+y;for(var x=-30;x<230;x+=10)d+=" l5 4 l5 -4";o+=pen(d,1.1,null,' stroke="#9ccc65"')}return o+pen("M"+(L-30)+" "+(ny+1)+" Q100 "+(ny+10)+" "+(R+30)+" "+(ny+1),4,null,' stroke="#9ccc65"')}},
+  c_sailor:{sl:"#ffffff",d:function(ny,L,R){return garmentBase("#ffffff",ny,L,R)+sketchLine("M"+(L)+" "+(ny-2)+" L100 "+(ny+22)+" L"+(R)+" "+(ny-2)+" L"+(R-14)+" "+(ny-2)+" L100 "+(ny+12)+" L"+(L+14)+" "+(ny-2)+" Z",1.4,"#4a6bb5")+'<path d="M94 '+(ny+16)+' l6 9 l6 -9z" fill="#ff8f8f" stroke="'+PEN+'" stroke-width="1.2"/>'}},
+  c_yukata:{sl:"#d6e8ff",d:function(ny,L,R){var o=garmentBase("#d6e8ff",ny,L,R);[[60,ny+20],[132,ny+16],[88,ny+40],[150,ny+40],[44,ny+42]].forEach(function(p,i){o+='<circle cx="'+p[0]+'" cy="'+p[1]+'" r="5" fill="'+(i%2?"#c9a6e8":"#ff9fc2")+'" opacity=".85"/><circle cx="'+p[0]+'" cy="'+p[1]+'" r="1.6" fill="#fff"/>'});
+    return o+pen("M82 "+(ny+1)+" L110 "+(ny+24)+" M118 "+(ny+1)+" L100 "+(ny+14),1.8)+'<rect x="-40" y="'+(ny+24)+'" width="280" height="9" fill="#ff9fbf"/>'+bow(126,ny+28,7,"#ffd36b","#e6b84a")}},
+  c_straw:{sl:"#ffd6e6",d:function(ny,L,R){var o=garmentBase("#ffd6e6",ny,L,R);[[62,ny+22],[100,ny+30],[138,ny+22],[80,ny+42],[122,ny+42]].forEach(function(p){o+=berry(p[0],p[1],.75)});return o+scallop(60,140,ny+3,4,"#fff","#e7c8d8")}},
+  c_magical:{sl:"#cdeeff",d:function(ny,L,R){return garmentBase("#cdeeff",ny,L,R)+'<rect x="-40" y="'+(ny+30)+'" width="280" height="40" fill="#ffd6ec"/>'+scallop(-40,240,ny+30,5,"#fff","#e7c8d8")+bow(100,ny+12,13,"#ff9fc2","#e27aa0",true)+star5(100,ny+12,5,"#fff3a6","#e6b84a")}},
+  c_hero:{sl:"#5b8ce0",d:function(ny,L,R){return garmentBase("#5b8ce0",ny,L,R)+star5(100,ny+18,9,"#ffe27a","#e6b84a")+'<rect x="-40" y="'+(ny+32)+'" width="280" height="7" fill="#ff8f8f"/>'}},
+  c_tux:{sl:"#3a3446",d:function(ny,L,R){return garmentBase("#3a3446",ny,L,R)+'<path d="M86 '+(ny+2)+' L100 '+(ny+30)+' L114 '+(ny+2)+' Z" fill="#fff"/>'+bow(100,ny+8,6,"#ff8f8f","#e26f6f")+'<circle cx="100" cy="'+(ny+36)+'" r="2" fill="#fff"/>'}}
+};
+var ARM_ANG={great:55,good:12,meh:0,tired:-22,bad:-32,sick:-38,sleep:0};
+function armsSVG(mood,fy,L,R,c,cloth,still){
+  var a=ARM_ANG[mood]||0,col=cloth?cloth.sl:c.f,o="";
+  [[-1,L+10],[1,R-10]].forEach(function(e){var s=e[0],x=e[1],y=fy+24,ang=s<0?a:-a;
+    var anim=(!still&&mood==="great")?'<animateTransform attributeName="transform" type="rotate" additive="sum" values="0 '+x+' '+y+';'+(-s*12)+' '+x+' '+y+';0 '+x+' '+y+'" dur="0.8s" repeatCount="indefinite"/>':"";
+    o+='<g transform="rotate('+ang+' '+x+' '+y+')">'+anim+sketchLine("M"+x+" "+(y-7)+" q"+(s*22)+" -2 "+(s*24)+" 7 q"+(-s*2)+" 9 "+(-s*24)+" 7 z",2,col)+
+      '<circle cx="'+(x+s*22)+'" cy="'+(y+1)+'" r="5.5" fill="'+c.f+'" stroke="'+PEN+'" stroke-width="1.8"/></g>';});
+  return o;
 }
 
 /* ================= mini games ================= */
@@ -1798,7 +1859,7 @@ function gameCatch(lv,done){
     '<div class="cwrap"><canvas id="cv"></canvas><div class="cstart" id="cStart"><div>🥬🍎🍓 = +10　⭐ = +30<br>🌭🍜🥤🍟🍬 に当たると 💗-1</div><button class="btn2" id="cGo">スタート！</button></div></div><div class="ghint">指でドラッグ／画面の左右タップ／←→キーで動かそう</div>';
   var cv=$("cv"),W=Math.min(380,window.innerWidth-48),H=Math.min(440,Math.max(320,window.innerHeight-260)),dpr=window.devicePixelRatio||1;
   cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+"px";cv.style.height=H+"px";var ctx=cv.getContext("2d");ctx.scale(dpr,dpr);
-  var img=new Image();img.src=svgURL(charaSVG({sp:S.chara.sp,mood:"great",load:0,lv:5,eq:S.chara.eq,mini:true}));
+  var img=new Image();img.src=svgURL(charaSVG({sp:S.chara.sp,mood:"great",load:0,lv:levelInfo(S.exp).lv,eq:S.chara.eq,mini:true}));
   var px=W/2,tx=W/2,vx=0,items=[],pops=[],score=0,life=3,time=P.t,spawn=0,run=false,raf=0,last=0,shake=0;
   var bgst=[];for(var i=0;i<18;i++)bgst.push([Math.random()*W,Math.random()*H,1+Math.random()*2.5,Math.random()*6]);
   function draw(){
